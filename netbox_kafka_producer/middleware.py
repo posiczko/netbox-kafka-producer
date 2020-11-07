@@ -4,6 +4,7 @@ import re
 import socket
 import time
 import uuid
+import logging
 
 from django.conf             import settings
 from django.core.serializers import json
@@ -22,10 +23,13 @@ IGNORE = re.compile(
 	])
 )
 
+logger = logging.getLogger("netbox_kafka_producer")
+
 # Change describe a per-instance change. The "model" is the serialized instance
 # prior to any updates. The "instance" is the last (unserialized) instance.
 class Change:
 	def __init__(self, event, model):
+		logger.error("netbox_kafka_producer Change#init")
 		self.event = event
 		self.model = model
 
@@ -35,6 +39,7 @@ class Change:
 # Transaction stores a request and the changes that occurred.
 class Transaction:
 	def __init__(self, request):
+		logger.error("netbox_kafka_producer Transaction#init")
 		self.request = request
 		self.changes = dict()
 
@@ -92,11 +97,14 @@ class Transaction:
 # created, updated, or deleted during a request.
 class KafkaChangeMiddleware:
 	def __init__(self, get_response):
+		logger.error("netbox_kafka_producer KafkaChangeMiddleware#init")
+		PLUGIN_SETTINGS = settings.PLUGINS_CONFIG["netbox_kafka_producer" ]
+		logger.info("KafkaChangeMiddleware: servers: %s, topic: %s", PLUGIN_SETTINGS['kafka']['servers'], PLUGIN_SETTINGS['kafka']['topic'])
 		self.get_response = get_response
-
+		logger.info("KafkaChangeMiddleware: got response")
 		self.encoder = json.DjangoJSONEncoder()
-		self.servers = settings.KAFKA['SERVERS']
-		self.topic   = settings.KAFKA['TOPIC']
+		self.servers = PLUGIN_SETTINGS['kafka']['servers']
+		self.topic   = PLUGIN_SETTINGS['kafka']['topic']
 
 		self.producer = confluent_kafka.Producer({
 			'bootstrap.servers':       self.servers,
